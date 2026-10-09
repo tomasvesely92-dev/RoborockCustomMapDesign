@@ -10,21 +10,28 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from vacuum_map_parser_base.config.color import Color, SupportedColor
+from vacuum_map_parser_base.config.size import Size
 
 TRANSPARENT: Color = (0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
 class Palette:
-    """A named set of map colors."""
+    """A named map style: colors, sizes and vacuum icon.
+
+    ``room_tones`` are given to the map's rooms in order of segment id, so
+    every room gets a different tone as long as there are enough tones.
+    ``room_colors`` pins a color to a specific segment id and wins over the
+    tones. ``sizes`` override the parser's sizes (in unscaled units, e.g.
+    ``Size.PATH_WIDTH: 0.5``). ``vacuum_icon`` is a key of ``icons.ICONS``
+    or ``None`` for the parser's own icon.
+    """
 
     colors: dict[SupportedColor, Color]
+    room_tones: list[Color] = field(default_factory=list)
     room_colors: dict[str, Color] = field(default_factory=dict)
-
-
-def _cycle_rooms(tones: list[Color]) -> dict[str, Color]:
-    """Assign tones to segment ids 1..32 in a repeating cycle."""
-    return {str(i): tones[(i - 1) % len(tones)] for i in range(1, 33)}
+    sizes: dict[Size, float] = field(default_factory=dict)
+    vacuum_icon: str | None = None
 
 
 # Material 3 dark: muted tonal containers on a transparent background,
@@ -74,7 +81,7 @@ M3_DARK = Palette(
         SupportedColor.OBSTACLE_WITH_PHOTO: (255, 184, 112, 200),
         SupportedColor.IGNORED_OBSTACLE_WITH_PHOTO: (160, 160, 168, 160),
     },
-    room_colors=_cycle_rooms(M3_DARK_ROOMS),
+    room_tones=M3_DARK_ROOMS,
 )
 
 # Material 3 light: pastel containers, dark walls.
@@ -110,7 +117,7 @@ M3_LIGHT = Palette(
         SupportedColor.NO_GO_ZONES_OUTLINE: (186, 26, 26),
         SupportedColor.ROOM_NAMES: (26, 28, 30),
     },
-    room_colors=_cycle_rooms(M3_LIGHT_ROOMS),
+    room_tones=M3_LIGHT_ROOMS,
 )
 
 # Special option: serve the core integration's own image unchanged.
