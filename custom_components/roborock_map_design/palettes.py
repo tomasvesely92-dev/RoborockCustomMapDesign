@@ -10,46 +10,57 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from vacuum_map_parser_base.config.color import Color, SupportedColor
+from vacuum_map_parser_base.config.size import Size
 
 TRANSPARENT: Color = (0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
 class Palette:
-    """A named set of map colors."""
+    """A named map style: colors, sizes and vacuum icon.
+
+    ``room_tones`` are given to the map's rooms in order of segment id, so
+    every room gets a different tone as long as there are enough tones.
+    ``room_colors`` pins a color to a specific segment id and wins over the
+    tones. ``sizes`` override the parser's sizes (in unscaled units, e.g.
+    ``Size.PATH_WIDTH: 0.5``). ``vacuum_icon`` is a key of ``icons.ICONS``
+    or ``None`` for the parser's own icon.
+    """
 
     colors: dict[SupportedColor, Color]
+    room_tones: list[Color] = field(default_factory=list)
     room_colors: dict[str, Color] = field(default_factory=dict)
-
-
-def _cycle_rooms(tones: list[Color]) -> dict[str, Color]:
-    """Assign tones to segment ids 1..32 in a repeating cycle."""
-    return {str(i): tones[(i - 1) % len(tones)] for i in range(1, 33)}
+    sizes: dict[Size, float] = field(default_factory=dict)
+    vacuum_icon: str | None = None
 
 
 # Material 3 dark: muted tonal containers on a transparent background,
 # so the map sits on the card's own surface color.
 M3_DARK_ROOMS: list[Color] = [
-    (61, 82, 122),   # blue
-    (92, 72, 122),   # purple
-    (48, 94, 72),    # green
-    (122, 82, 46),   # orange
-    (114, 64, 84),   # pink
-    (40, 92, 102),   # teal
-    (104, 96, 44),   # olive
-    (96, 72, 66),    # clay
+    (86, 130, 206),   # blue
+    (214, 160, 64),   # amber
+    (52, 120, 86),    # green
+    (204, 104, 150),  # pink
+    (58, 156, 168),   # teal
+    (116, 88, 172),   # purple
+    (160, 150, 64),   # olive
+    (176, 98, 74),    # clay
 ]
 
 M3_DARK = Palette(
     colors={
         SupportedColor.MAP_OUTSIDE: TRANSPARENT,
-        SupportedColor.MAP_INSIDE: (44, 47, 54),
-        SupportedColor.SCAN: (44, 47, 54),
-        SupportedColor.NEW_DISCOVERED_AREA: (44, 47, 54),
-        SupportedColor.MAP_WALL: (196, 198, 208),
-        SupportedColor.MAP_WALL_V2: (196, 198, 208),
-        SupportedColor.GREY_WALL: (196, 198, 208),
-        SupportedColor.PATH: (227, 227, 233, 150),
+        # Floor not assigned to a room.
+        SupportedColor.MAP_INSIDE: (40, 43, 49),
+        SupportedColor.NEW_DISCOVERED_AREA: (40, 43, 49),
+        # What the lidar saw outside the home, and its edge: hidden.
+        SupportedColor.SCAN: TRANSPARENT,
+        SupportedColor.MAP_WALL: TRANSPARENT,
+        # Walls and furniture outlines: near-black "gaps" between rooms.
+        SupportedColor.MAP_WALL_V2: (20, 21, 25),
+        # Obstacles outside rooms: dark and quiet.
+        SupportedColor.GREY_WALL: (38, 40, 46),
+        SupportedColor.PATH: (255, 255, 255, 70),
         SupportedColor.GOTO_PATH: (168, 199, 250),
         SupportedColor.PREDICTED_PATH: (168, 199, 250, 150),
         SupportedColor.MOP_PATH: (255, 255, 255, 40),
@@ -61,7 +72,7 @@ M3_DARK = Palette(
         SupportedColor.ZONES: (168, 199, 250, 60),
         SupportedColor.ZONES_OUTLINE: (168, 199, 250),
         SupportedColor.VIRTUAL_WALLS: (255, 138, 128),
-        SupportedColor.NO_GO_ZONES: (255, 138, 128, 60),
+        SupportedColor.NO_GO_ZONES: (255, 138, 128, 50),
         SupportedColor.NO_GO_ZONES_OUTLINE: (255, 138, 128),
         SupportedColor.NO_MOPPING_ZONES: (208, 188, 255, 60),
         SupportedColor.NO_MOPPING_ZONES_OUTLINE: (208, 188, 255),
@@ -74,7 +85,9 @@ M3_DARK = Palette(
         SupportedColor.OBSTACLE_WITH_PHOTO: (255, 184, 112, 200),
         SupportedColor.IGNORED_OBSTACLE_WITH_PHOTO: (160, 160, 168, 160),
     },
-    room_colors=_cycle_rooms(M3_DARK_ROOMS),
+    room_tones=M3_DARK_ROOMS,
+    sizes={Size.PATH_WIDTH: 0.5, Size.VACUUM_RADIUS: 4, Size.CHARGER_RADIUS: 4},
+    vacuum_icon="saucer",
 )
 
 # Material 3 light: pastel containers, dark walls.
@@ -110,7 +123,9 @@ M3_LIGHT = Palette(
         SupportedColor.NO_GO_ZONES_OUTLINE: (186, 26, 26),
         SupportedColor.ROOM_NAMES: (26, 28, 30),
     },
-    room_colors=_cycle_rooms(M3_LIGHT_ROOMS),
+    room_tones=M3_LIGHT_ROOMS,
+    sizes={Size.PATH_WIDTH: 0.5, Size.VACUUM_RADIUS: 4, Size.CHARGER_RADIUS: 4},
+    vacuum_icon="saucer",
 )
 
 # Special option: serve the core integration's own image unchanged.

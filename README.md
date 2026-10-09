@@ -7,6 +7,8 @@ Fork of [Roborock Custom Map](https://github.com/Python-roborock/RoborockCustomM
 - Takes the raw map data the **core Roborock integration** already keeps and renders it again with a custom palette. It makes no extra requests to the cloud or the vacuum.
 - The image and the calibration always come **from the same source**, so zones and "go to" targets in the map card stay aligned.
 - If the custom render fails (for example after a Home Assistant update), it **automatically serves the core image and calibration**, the same way upstream Roborock Custom Map does.
+- **Neighboring rooms get clearly different colors.** The integration works out which rooms touch and picks tones that differ in both hue and lightness, so it adapts when you split or merge rooms.
+- A smooth, anti-aliased **flying saucer** vacuum icon that turns with the vacuum's heading, a thinner cleaning path, and hidden lidar noise outside the home.
 - The domain is `roborock_map_design`, so it can run **alongside upstream Roborock Custom Map**.
 
 ## Entities (per map)
@@ -79,7 +81,12 @@ actions:
 
 ## Changing colors
 
-Palettes live in `custom_components/roborock_map_design/palettes.py`. Colors are `(R, G, B)` or `(R, G, B, A)`, and rooms are keyed by segment ID.
+Palettes live in `custom_components/roborock_map_design/palettes.py`. Colors are `(R, G, B)` or `(R, G, B, A)`.
+
+- `room_tones`: the set of room colors; neighbors automatically get contrasting ones.
+- `room_colors`: pin a color to a room by its segment ID (wins over `room_tones`).
+- `sizes`: override the parser's sizes, e.g. `Size.PATH_WIDTH` or `Size.VACUUM_RADIUS`.
+- `vacuum_icon`: `saucer`, `radar`, `rocket`, `m3_arrow`, `m3_dot`, or `None` for the parser's own icon (see `icons.py`).
 
 ## Credits
 
