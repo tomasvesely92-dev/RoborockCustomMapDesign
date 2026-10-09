@@ -92,7 +92,25 @@ def _make_parser(
             )
 
         generator._draw_vacuum_position = _draw_vacuum_position  # noqa: SLF001
+    if palette.path_halo is not None and palette.path_halo_width > 0:
+        _add_path_halo(parser, palette, map_scale)
     return parser
+
+
+def _add_path_halo(parser: RoborockMapDataParser, palette: Palette, map_scale: int) -> None:
+    """Draw a wider, darker band under the cleaning path."""
+    generator = parser._image_generator  # noqa: SLF001
+    original = generator._draw_vacuum_path  # noqa: SLF001
+    halo_width = palette.path_halo_width * map_scale
+
+    def _draw_vacuum_path(map_data: MapData) -> None:
+        if map_data.path is not None and map_data.image is not None:
+            generator._draw_path(  # noqa: SLF001
+                map_data.image, map_data.path, halo_width, palette.path_halo
+            )
+        original(map_data)
+
+    generator._draw_vacuum_path = _draw_vacuum_path  # noqa: SLF001
 
 
 def render_map(

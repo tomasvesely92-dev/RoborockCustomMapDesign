@@ -32,6 +32,10 @@ class Palette:
     room_colors: dict[str, Color] = field(default_factory=dict)
     sizes: dict[Size, float] = field(default_factory=dict)
     vacuum_icon: str | None = None
+    # Optional darker band under the cleaning path, so a light path stays
+    # readable on light rooms too. Width in unscaled units.
+    path_halo: Color | None = None
+    path_halo_width: float = 0
 
 
 # Material 3 dark: muted tonal containers on a transparent background,
@@ -60,7 +64,7 @@ M3_DARK = Palette(
         SupportedColor.MAP_WALL_V2: (20, 21, 25),
         # Obstacles outside rooms: dark and quiet.
         SupportedColor.GREY_WALL: (38, 40, 46),
-        SupportedColor.PATH: (255, 255, 255, 70),
+        SupportedColor.PATH: (255, 255, 255, 150),
         SupportedColor.GOTO_PATH: (168, 199, 250),
         SupportedColor.PREDICTED_PATH: (168, 199, 250, 150),
         SupportedColor.MOP_PATH: (255, 255, 255, 40),
@@ -88,6 +92,8 @@ M3_DARK = Palette(
     room_tones=M3_DARK_ROOMS,
     sizes={Size.PATH_WIDTH: 0.5, Size.VACUUM_RADIUS: 4, Size.CHARGER_RADIUS: 4},
     vacuum_icon="saucer",
+    path_halo=(0, 0, 0, 70),
+    path_halo_width=1.25,
 )
 
 # Material 3 light: pastel containers, dark walls.
