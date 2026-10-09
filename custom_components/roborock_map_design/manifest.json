@@ -1,0 +1,12 @@
+{
+  "domain": "roborock_map_design",
+  "name": "Roborock Map Design",
+  "codeowners": ["@tomasvesely92-dev"],
+  "config_flow": true,
+  "dependencies": ["roborock"],
+  "documentation": "https://github.com/tomasvesely92-dev/RoborockCustomMapDesign",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/tomasvesely92-dev/RoborockCustomMapDesign/issues",
+  "requirements": [],
+  "version": "0.2.0"
+}

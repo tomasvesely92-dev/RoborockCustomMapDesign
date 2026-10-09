@@ -1,0 +1,34 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_service%]"
+    }
+  },
+  "entity": {
+    "select": {
+      "rotation": {
+        "name": "Kartendrehung",
+        "state": {
+          "0": "Keine Drehung",
+          "90": "90° drehen",
+          "180": "180° drehen",
+          "270": "270° drehen"
+        }
+      },
+      "palette": {
+        "name": "Kartenfarben",
+        "state": {
+          "m3_dark": "Material You – dark",
+          "m3_light": "Material You – light",
+          "original": "Original (core)"
+        }
+      }
+    }
+  },
+  "services": {
+    "dump_raw_map": {
+      "name": "Rohe Kartendaten speichern",
+      "description": "Speichert die rohen Kartendaten aller Karten im Ordner roborock_map_design in deiner Konfiguration."
+    }
+  }
+}

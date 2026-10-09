@@ -1,4 +1,4 @@
-"""Config flow for Roborock Custom Map integration."""
+"""Config flow for Roborock Map Design integration."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .const import DOMAIN
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Roborock Custom Map."""
+    """Handle a config flow for Roborock Map Design."""
 
     VERSION = 1
 
@@ -21,4 +21,4 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
-        return self.async_create_entry(title="Roborock Custom Map", data={})
+        return self.async_create_entry(title="Roborock Map Design", data={})
