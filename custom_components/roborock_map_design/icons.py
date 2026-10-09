@@ -76,16 +76,16 @@ def _draw_radar(draw, cx, cy, r, a, fill, outline) -> None:
 def _draw_saucer(draw, cx, cy, r, a, fill, outline) -> None:
     """Flying saucer from above: hull, dome and a ring of lights."""
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=outline)
-    hull = r * 0.86
+    hull = r * 0.92
     draw.ellipse([cx - hull, cy - hull, cx + hull, cy + hull], fill=fill)
-    rim = r * 0.62
+    rim = r * 0.56
     draw.ellipse([cx - rim, cy - rim, cx + rim, cy + rim], fill=outline)
     dome = r * 0.48
     draw.ellipse([cx - dome, cy - dome, cx + dome, cy + dome], fill=(*fill[:3], 200))
     hl = r * 0.16
     hx, hy = cx - dome * 0.35, cy - dome * 0.35
     draw.ellipse([hx - hl, hy - hl, hx + hl, hy + hl], fill=(255, 255, 255, 170))
-    lamp = r * 0.07
+    lamp = r * 0.06
     for k in range(8):
         lx, ly = _heading_point(cx, cy, r * 0.74, a + k * math.pi / 4)
         color = (255, 214, 120, 255) if k == 0 else outline
