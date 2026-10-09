@@ -2,39 +2,35 @@
 
 Fork of [Roborock Custom Map](https://github.com/Python-roborock/RoborockCustomMap) that re-renders the core Roborock integration's map with a custom color palette (Material You dark/light). If the custom render fails, it falls back to the core image and calibration, which is exactly what upstream serves.
 
-Česky níže.
+## What it does
 
----
+- Takes the raw map data the **core Roborock integration** already keeps and renders it again with a custom palette. It makes no extra requests to the cloud or the vacuum.
+- The image and the calibration always come **from the same source**, so zones and "go to" targets in the map card stay aligned.
+- If the custom render fails (for example after a Home Assistant update), it **automatically serves the core image and calibration**, the same way upstream Roborock Custom Map does.
+- The domain is `roborock_map_design`, so it can run **alongside upstream Roborock Custom Map**.
 
-## Co to dělá
+## Entities (per map)
 
-- Vezme surová data mapy, která si drží **core Roborock integrace**, a vykreslí je znovu s vlastní paletou. Na cloud ani na vysavač se neposílají žádné dotazy navíc.
-- Obrázek i kalibrace vždy pocházejí **ze stejného zdroje**, takže zóny a „jeď sem“ v kartě sedí.
-- Když vlastní vykreslení selže (např. po aktualizaci HA), komponenta **automaticky vrátí původní obrázek a kalibraci z core**, tak jak je servíruje původní RoborockCustomMap.
-- Doména je `roborock_map_design`, takže může běžet **vedle originálního RoborockCustomMap**.
-
-## Entity (pro každou mapu)
-
-| Entita | Popis |
+| Entity | Description |
 | - | - |
-| `image.<mapa>_design` | Mapa pro xiaomi-vacuum-map-card, včetně atributů `calibration_points`, `rooms`, `zones` a `render_mode` |
-| `binary_sensor.<mapa>_design_ok` | `on`, dokud vlastní vykreslení funguje (nebo je zvolená paleta „Původní“). Atributy `render_mode` a `last_error` |
-| `select.<mapa>_palette` | Material You – tmavá / světlá / Původní (core) |
-| `select.<mapa>_rotation` | Otočení mapy po 90° (otáčí obrázek i kalibraci) |
+| `image.<map>_design` | Map for the xiaomi-vacuum-map-card, with `calibration_points`, `rooms`, `zones` and `render_mode` attributes |
+| `binary_sensor.<map>_design_ok` | `on` while the custom render works (or the "Original" palette is selected). Attributes `render_mode` and `last_error` |
+| `select.<map>_palette` | Material You dark / Material You light / Original (core) |
+| `select.<map>_rotation` | Rotates the map in 90° steps (image and calibration together) |
 
-Služba `roborock_map_design.dump_raw_map` uloží surová data map do `/config/roborock_map_design/*.bin`, pro ladění palety mimo HA.
+The `roborock_map_design.dump_raw_map` action saves the raw map data to `/config/roborock_map_design/*.bin` for tuning palettes outside Home Assistant.
 
-## Instalace
+## Installation
 
-1. Core Roborock integrace musí být nastavená a načtená.
-2. **`image` entity core integrace nevypínej**, pokud je používá tvoje současná karta (slouží jako záloha).
-3. HACS → ⋮ → Custom repositories → `https://github.com/tomasvesely92-dev/RoborockCustomMapDesign`, typ *Integration*.
-4. Stáhnout **Roborock Map Design**, restartovat HA.
-5. Nastavení → Zařízení a služby → Přidat integraci → **Roborock Map Design**.
+1. The core Roborock integration must be set up and loaded.
+2. **Don't disable the core integration's `image` entities** if your current map card uses them. They serve as the fallback.
+3. HACS → ⋮ → Custom repositories → `https://github.com/tomasvesely92-dev/RoborockCustomMapDesign`, type *Integration*.
+4. Download **Roborock Map Design**, then restart Home Assistant.
+5. Settings → Devices & services → Add integration → **Roborock Map Design**.
 
-## Karta s bezpečným fallbackem
+## Map card with a safe fallback
 
-Současnou kartu nech beze změny a zkopíruj ji. V kopii změň jen `map_source` a `calibration_source`:
+Leave your current card unchanged and make a copy of it. In the copy, change only `map_source` and `calibration_source`:
 
 ```yaml
 type: vertical-stack
@@ -42,48 +38,48 @@ cards:
   - type: conditional
     conditions:
       - condition: state
-        entity: binary_sensor.<mapa>_design_ok
+        entity: binary_sensor.<map>_design_ok
         state: "on"
     card:
-      # kopie současné karty, jen tyto dvě položky:
+      # copy of your current card, with only these two keys changed:
       type: custom:xiaomi-vacuum-map-card
       map_source:
-        camera: image.<mapa>_design
+        camera: image.<map>_design
       calibration_source:
         camera: true
-      # ... zbytek beze změny
+      # ... everything else unchanged
   - type: conditional
     conditions:
       - condition: state
-        entity: binary_sensor.<mapa>_design_ok
+        entity: binary_sensor.<map>_design_ok
         state_not: "on"
     card:
-      # současná karta, beze změny
+      # your current card, unchanged
 ```
 
-`state_not: "on"` pokryje `off`, `unavailable` i stav, kdy se integrace vůbec nenačte.
+`state_not: "on"` covers `off`, `unavailable`, and the case where the integration doesn't load at all.
 
-## Notifikace při výpadku
+## Notification on fallback
 
 ```yaml
-alias: Mapa vysavače – fallback
+alias: Vacuum map – fallback
 triggers:
   - trigger: state
-    entity_id: binary_sensor.<mapa>_design_ok
+    entity_id: binary_sensor.<map>_design_ok
     from: "on"
     for: "00:05:00"
 actions:
-  - action: notify.mobile_app_<telefon>
+  - action: notify.mobile_app_<phone>
     data:
-      title: Mapa vysavače
+      title: Vacuum map
       message: >
-        Vlastní vykreslení mapy nefunguje ({{ state_attr(trigger.entity_id, 'last_error') }}).
-        Karta ukazuje původní mapu.
+        The custom map render is not working ({{ state_attr(trigger.entity_id, 'last_error') }}).
+        The card is showing the original map.
 ```
 
-## Úprava barev
+## Changing colors
 
-Palety jsou v `custom_components/roborock_map_design/palettes.py`. Barvy jsou `(R, G, B)` nebo `(R, G, B, A)`, místnosti se klíčují podle ID segmentu.
+Palettes live in `custom_components/roborock_map_design/palettes.py`. Colors are `(R, G, B)` or `(R, G, B, A)`, and rooms are keyed by segment ID.
 
 ## Credits
 
