@@ -21,6 +21,7 @@ from vacuum_map_parser_roborock.map_data_parser import RoborockMapDataParser
 
 from .icons import ICONS, draw_icon
 from .palettes import PALETTES, Palette
+from .room_colors import assign_tones, find_neighbors, probe_room_colors
 
 
 class RenderError(Exception):
@@ -41,12 +42,20 @@ def _sizes(palette: Palette, map_scale: int) -> Sizes:
     return Sizes({k: v * map_scale for k, v in base.items()})
 
 
-def _room_colors(palette: Palette, room_ids: list[int]) -> dict[str, Color]:
-    """Tones in order of segment id, then pinned colors on top."""
-    colors: dict[str, Color] = {}
-    if palette.room_tones:
-        for index, room_id in enumerate(sorted(room_ids)):
-            colors[str(room_id)] = palette.room_tones[index % len(palette.room_tones)]
+_PROBE = Palette(colors={color: (0, 0, 0, 0) for color in SupportedColor})
+
+
+def _contrasting_room_colors(palette: Palette, raw: bytes) -> dict[str, Color]:
+    """Neighboring rooms get clearly different tones; pinned colors win.
+
+    Two cheap probe parses at scale 1: one to learn the room ids, one with
+    colors that encode them, to see which rooms touch. Maps change rarely.
+    """
+    rooms = _make_parser(_PROBE, {}, [], 1).parse(raw).rooms or {}
+    room_ids = list(rooms)
+    probe = _make_parser(_PROBE, probe_room_colors(room_ids), [], 1).parse(raw)
+    neighbors = find_neighbors(probe.image.data, room_ids)
+    colors = assign_tones(list(palette.room_tones), neighbors)
     colors.update(palette.room_colors)
     return colors
 
@@ -105,10 +114,7 @@ def render_map(
     try:
         room_colors = dict(palette.room_colors)
         if palette.room_tones:
-            # First pass only to learn which rooms the map has, so each one
-            # gets its own tone. Maps change rarely, so the cost is small.
-            probe = _make_parser(palette, room_colors, [], 1).parse(raw)
-            room_colors = _room_colors(palette, list((probe.rooms or {}).keys()))
+            room_colors = _contrasting_room_colors(palette, raw)
         map_data = _make_parser(palette, room_colors, drawables, map_scale).parse(raw)
     except Exception as err:  # noqa: BLE001 - any parser failure means fallback
         raise RenderError(f"Failed to parse map data: {err}") from err
