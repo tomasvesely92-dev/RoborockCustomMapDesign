@@ -1,75 +1,90 @@
-# Roborock Custom Map
+# Roborock Map Design
 
-you MUST be on 2025.4b or later
+Fork of [Roborock Custom Map](https://github.com/Python-roborock/RoborockCustomMap) that re-renders the core Roborock integration's map with a custom color palette (Material You dark/light). If the custom render fails, it falls back to the core image and calibration, which is exactly what upstream serves.
 
-This allows you to use the core Roborock integration with the [Xiaomi Map Card](https://github.com/PiotrMachowski/lovelace-xiaomi-vacuum-map-card)
+Česky níže.
 
-If you would like to support me, you can do so here:
+---
 
-[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
+## Co to dělá
 
-[![PaypalMe][paypalmebadge]][paypalme]
+- Vezme surová data mapy, která si drží **core Roborock integrace**, a vykreslí je znovu s vlastní paletou. Na cloud ani na vysavač se neposílají žádné dotazy navíc.
+- Obrázek i kalibrace vždy pocházejí **ze stejného zdroje**, takže zóny a „jeď sem“ v kartě sedí.
+- Když vlastní vykreslení selže (např. po aktualizaci HA), komponenta **automaticky vrátí původní obrázek a kalibraci z core**, tak jak je servíruje původní RoborockCustomMap.
+- Doména je `roborock_map_design`, takže může běžet **vedle originálního RoborockCustomMap**.
 
-### Setup
+## Entity (pro každou mapu)
 
-1. Install the [Roborock Core Integration](https://my.home-assistant.io/redirect/config_flow_start?domain=roborock) and set it up
-2. It is recommended that you first disable the Image entities within the core integration. Open each image entity, hit the gear icon, then trigger the toggle by enabled.
-3. Install this integration(See the installing via HACS section below)
-4. This integration works by piggybacking off of the Core integration, so the Core integration will do all the data updating to help prevent rate-limits. But that means that the core integration must be setup and loaded first. If you run into any issues, make sure the Roborock integration is loaded first, and then reload this one.
-5. Setup the map card like normal! An example configuration would look like
+| Entita | Popis |
+| - | - |
+| `image.<mapa>_design` | Mapa pro xiaomi-vacuum-map-card, včetně atributů `calibration_points`, `rooms`, `zones` a `render_mode` |
+| `binary_sensor.<mapa>_design_ok` | `on`, dokud vlastní vykreslení funguje (nebo je zvolená paleta „Původní“). Atributy `render_mode` a `last_error` |
+| `select.<mapa>_palette` | Material You – tmavá / světlá / Původní (core) |
+| `select.<mapa>_rotation` | Otočení mapy po 90° (otáčí obrázek i kalibraci) |
+
+Služba `roborock_map_design.dump_raw_map` uloží surová data map do `/config/roborock_map_design/*.bin`, pro ladění palety mimo HA.
+
+## Instalace
+
+1. Core Roborock integrace musí být nastavená a načtená.
+2. **`image` entity core integrace nevypínej**, pokud je používá tvoje současná karta (slouží jako záloha).
+3. HACS → ⋮ → Custom repositories → `https://github.com/tomasvesely92-dev/RoborockCustomMapDesign`, typ *Integration*.
+4. Stáhnout **Roborock Map Design**, restartovat HA.
+5. Nastavení → Zařízení a služby → Přidat integraci → **Roborock Map Design**.
+
+## Karta s bezpečným fallbackem
+
+Současnou kartu nech beze změny a zkopíruj ji. V kopii změň jen `map_source` a `calibration_source`:
+
 ```yaml
-type: custom:xiaomi-vacuum-map-card
-vacuum_platform: Roborock
-entity: vacuum.s7
-map_source:
-  camera: image.s7_downstairs_full_custom
-calibration_source:
-  camera: true
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.<mapa>_design_ok
+        state: "on"
+    card:
+      # kopie současné karty, jen tyto dvě položky:
+      type: custom:xiaomi-vacuum-map-card
+      map_source:
+        camera: image.<mapa>_design
+      calibration_source:
+        camera: true
+      # ... zbytek beze změny
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: binary_sensor.<mapa>_design_ok
+        state_not: "on"
+    card:
+      # současná karta, beze změny
 ```
-### Map rotation (new)
 
-If your map is displayed sideways or upside down, you can rotate the map directly in Home Assistant.
+`state_not: "on"` pokryje `off`, `unavailable` i stav, kdy se integrace vůbec nenačte.
 
-This integration provides a **Select entity per map** to control rotation:
-- `select.<...>_rotation`
-- Options: `0°`, `90°`, `180°`, `270°` (labels depend on your HA language)
+## Notifikace při výpadku
 
-This rotates **both**:
-- the map image
-- and the calibration points used by the Xiaomi Vacuum Map Card  
-  (so rooms/zones and interactions stay aligned after rotation)
+```yaml
+alias: Mapa vysavače – fallback
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.<mapa>_design_ok
+    from: "on"
+    for: "00:05:00"
+actions:
+  - action: notify.mobile_app_<telefon>
+    data:
+      title: Mapa vysavače
+      message: >
+        Vlastní vykreslení mapy nefunguje ({{ state_attr(trigger.entity_id, 'last_error') }}).
+        Karta ukazuje původní mapu.
+```
 
-**How to use**
-1. Go to **Settings → Devices & services → Roborock Custom Map**
-2. Open the device/entities list
-3. Find the `… rotation` select entity for your map and choose the correct rotation
+## Úprava barev
 
-No reload is required; the map updates immediately.
+Palety jsou v `custom_components/roborock_map_design/palettes.py`. Barvy jsou `(R, G, B)` nebo `(R, G, B, A)`, místnosti se klíčují podle ID segmentu.
 
-6. You can hit Edit on the card and then Generate Room Configs to allow for cleaning of rooms. It might generate extra keys, so check the yaml and make sure there are no extra 'predefined_sections'
+## Credits
 
-### Installation
-
-### Installing via HACS
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Lash-L&repository=RoborockCustomMap&category=integration)
-
-or
-
-1. Go to HACS->Integrations
-1. Add this repo(https://github.com/Lash-L/RoborockCustomMap) into your HACS custom repositories
-1. Search for Roborock Custom Map and Download it
-1. Restart your HomeAssistant
-1. Go to Settings->Devices & Services
-1. Add the Roborock Custom Map integration
-
-### Alternative/optional
-
-Once you set up this integration, you can generate a static config in the lovelace card, and theoretically, you should be able to use that code with your Roborock CORE integration. However, it wont stay up to date if the map calibrations change significantly, or rooms change. So I'd only do this when I was sure everything was good!
-
-
-
-[buymecoffee]: https://www.buymeacoffee.com/LashL
-[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
-[paypalme]: https://paypal.me/LLashley304
-[paypalmebadge]: https://cdn.rawgit.com/twolfson/paypal-github-button/1.0.0/dist/button.svg
-[hacsbutton]: https://my.home-assistant.io/redirect/hacs_repository/?owner=Lash-L&repository=tempofit&category=integration
+Based on [Roborock Custom Map](https://github.com/Python-roborock/RoborockCustomMap) by @Lash-L and the [python-roborock](https://github.com/Python-roborock/python-roborock) / [vacuum-map-parser](https://github.com/PiotrMachowski/Python-package-vacuum-map-parser-roborock) projects.
