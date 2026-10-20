@@ -23,3 +23,16 @@ MODE_FALLBACK = "fallback"  # custom render failed, core image served
 FALLBACK_MAP_SCALE = 4
 
 SERVICE_DUMP_RAW_MAP = "dump_raw_map"
+
+# Live map: while the vacuum is moving, fetch only the map (one GET_MAP_V1
+# request) more often than the core integration does (~30-45 s), so the path
+# and robot position on the design map follow the vacuum closely.
+LIVE_MAP_INTERVAL_SECONDS = 10
+# After a failed/timed-out live fetch, wait this long before trying again.
+LIVE_MAP_BACKOFF_SECONDS = 30
+# Roborock state codes during which the robot moves and draws a new path:
+# remote control, cleaning, returning home, manual, spot, docking,
+# going to target, zoned, segment, mapping and the mop variants (6301-6310).
+LIVE_MAP_STATES = frozenset(
+    {4, 5, 6, 7, 11, 15, 16, 17, 18, 29, *range(6301, 6311)}
+)
