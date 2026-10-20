@@ -9,7 +9,7 @@ Image and calibration always come from the same source:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 import logging
 
@@ -31,6 +31,7 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
 )
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -39,6 +40,9 @@ from .const import (
     DEFAULT_MAP_ROTATION,
     DOMAIN,
     FALLBACK_MAP_SCALE,
+    LIVE_MAP_BACKOFF_SECONDS,
+    LIVE_MAP_INTERVAL_SECONDS,
+    LIVE_MAP_STATES,
     MAP_ROTATION_OPTIONS,
     MODE_CUSTOM,
     MODE_FALLBACK,
@@ -159,15 +163,30 @@ class RoborockDesignMap(RoborockCoordinatedEntityV1, ImageEntity):
         self._rendered_palette: str | None = None
         self._render_lock = asyncio.Lock()
 
+        # Live map state (see _async_live_tick).
+        self._live_content: MapContent | None = None
+        self._core_raw_seen: bytes | None = None
+        self._live_busy = False
+        self._live_retry_after: datetime | None = None
+        self._live_failures = 0
+
     # ----- source data -------------------------------------------------
 
     @property
-    def _map_content(self) -> MapContent | None:
+    def _core_map_content(self) -> MapContent | None:
+        """The map content as last fetched by the core integration."""
         if self._home_trait.home_map_content and (
             map_content := self._home_trait.home_map_content.get(self.map_flag)
         ):
             return map_content
         return None
+
+    @property
+    def _map_content(self) -> MapContent | None:
+        """Newest map content: our live fetch if fresher than the core's."""
+        if self._live_content is not None:
+            return self._live_content
+        return self._core_map_content
 
     def _current(self) -> tuple[bytes, MapData | None]:
         """Return image and map data from ONE source (never mixed)."""
@@ -224,6 +243,14 @@ class RoborockDesignMap(RoborockCoordinatedEntityV1, ImageEntity):
                 self._handle_palette_changed,
             )
         )
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass,
+                self._async_live_tick,
+                timedelta(seconds=LIVE_MAP_INTERVAL_SECONDS),
+                name=f"{DOMAIN} live map {self.map_key}",
+            )
+        )
         self.async_write_ha_state()
         self.hass.async_create_task(self._async_refresh_render())
 
@@ -240,11 +267,78 @@ class RoborockDesignMap(RoborockCoordinatedEntityV1, ImageEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Re-render when the core integration has a new map."""
+        core = self._core_map_content
+        if core is not None and core.raw_api_response != self._core_raw_seen:
+            # The core just fetched a map; it is at least as new as ours.
+            self._core_raw_seen = core.raw_api_response
+            self._live_content = None
         if (map_content := self._map_content) is not None and (
             map_content.raw_api_response != self._rendered_raw
         ):
             self.hass.async_create_task(self._async_refresh_render())
         super()._handle_coordinator_update()
+
+    # ----- live map ----------------------------------------------------
+
+    def _live_map_wanted(self) -> bool:
+        """True while the robot moves on this map (path/position change)."""
+        try:
+            status = self.coordinator.properties_api.status
+            state = getattr(status.state, "value", status.state)
+            if state not in LIVE_MAP_STATES:
+                return False
+            current_map = self._home_trait._maps_trait.current_map  # noqa: SLF001
+        except AttributeError:
+            return False
+        return current_map is None or current_map == self.map_flag
+
+    async def _async_live_tick(self, _now: datetime) -> None:
+        """Fetch just the map (one GET_MAP_V1) while the vacuum is moving.
+
+        The core integration refreshes the map at most every ~30-45 s and
+        sends three cloud commands each time. Here we send only the map
+        command, every LIVE_MAP_INTERVAL_SECONDS, and only while cleaning,
+        returning or docking. On failure we back off and simply keep serving
+        the last map, so nothing gets worse than the core behaviour.
+        """
+        if self._live_busy or not self.enabled or not self._live_map_wanted():
+            return
+        now = dt_util.utcnow()
+        if self._live_retry_after is not None and now < self._live_retry_after:
+            return
+        try:
+            trait = self._home_trait._map_content  # noqa: SLF001
+        except AttributeError:
+            return
+
+        self._live_busy = True
+        try:
+            await trait.refresh()
+        except Exception as err:  # noqa: BLE001 - never break the entity
+            self._live_failures += 1
+            self._live_retry_after = now + timedelta(seconds=LIVE_MAP_BACKOFF_SECONDS)
+            _LOGGER.debug(
+                "Live map fetch for %s failed (%d in a row), retrying in %ss: %s",
+                self.entity_id,
+                self._live_failures,
+                LIVE_MAP_BACKOFF_SECONDS,
+                err,
+            )
+            return
+        finally:
+            self._live_busy = False
+
+        self._live_failures = 0
+        self._live_retry_after = None
+        raw = trait.raw_api_response
+        if not raw or raw == self._rendered_raw:
+            return
+        self._live_content = MapContent(
+            image_content=trait.image_content,
+            map_data=trait.map_data,
+            raw_api_response=raw,
+        )
+        await self._async_refresh_render()
 
     # ----- rendering ---------------------------------------------------
 

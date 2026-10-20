@@ -4,7 +4,8 @@ Fork of [Roborock Custom Map](https://github.com/Python-roborock/RoborockCustomM
 
 ## What it does
 
-- Takes the raw map data the **core Roborock integration** already keeps and renders it again with a custom palette. It makes no extra requests to the cloud or the vacuum.
+- Takes the raw map data the **core Roborock integration** already keeps and renders it again with a custom palette. While docked or idle it makes no extra requests to the cloud or the vacuum.
+- **Live map while the vacuum moves.** The core integration refreshes the map only every ~30–45 s while cleaning (and sends three cloud commands each time). While the vacuum is cleaning, returning or docking, this integration additionally fetches **just the map** (one `GET_MAP_V1` request) every 10 s, so the path and robot position follow the vacuum closely. On a failed or timed-out request it backs off for 30 s and keeps showing the last map. Intervals are in `const.py` (`LIVE_MAP_INTERVAL_SECONDS`, `LIVE_MAP_BACKOFF_SECONDS`).
 - The image and the calibration always come **from the same source**, so zones and "go to" targets in the map card stay aligned.
 - If the custom render fails (for example after a Home Assistant update), it **automatically serves the core image and calibration**, the same way upstream Roborock Custom Map does.
 - **Neighboring rooms get clearly different colors.** The integration works out which rooms touch and picks tones that differ in both hue and lightness, so it adapts when you split or merge rooms.
